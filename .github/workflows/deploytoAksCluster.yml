@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: digitcontainerregistry.azurecr.io
+        username: ${{ secrets.acr_digitcontainerregistry_username }}
+        password: ${{ secrets.acr_digitcontainerregistry_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/amd64/hello-world" -f  "amd64/hello-world/Dockerfile" -t digitcontainerregistry.azurecr.io/digitdevenv:${{ github.sha }} --label dockerfile-path=amd64/hello-world/Dockerfile
+        docker push digitcontainerregistry.azurecr.io/digitdevenv:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_digitdevenv_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep deplyment-test | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace deplyment-test`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: deplyment-test
+        container-registry-url: digitcontainerregistry.azurecr.io
+        container-registry-username: ${{ secrets.acr_digitcontainerregistry_username }}
+        container-registry-password: ${{ secrets.acr_digitcontainerregistry_password }}
+        secret-name: digitdevenvdockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: deplyment-test
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          digitcontainerregistry.azurecr.io/digitdevenv:${{ github.sha }}
+        imagepullsecrets: |
+          digitdevenvdockerauth
