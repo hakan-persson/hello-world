@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "digitdevenv-461d"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "digitdevenv-461d"
+  template:
+    metadata:
+      labels:
+        app: "digitdevenv-461d"
+    spec:
+      containers:
+        - name: "digitdevenv-461d"
+          image: "digitcontainerregistry.azurecr.io/digitdevenv"
+          ports:
+          - containerPort: 80
